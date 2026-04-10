@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShipLog — Everything David Liedle Has Shipped</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0a0a0f;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,sans-serif;line-height:1.6;overflow-x:hidden}
+  a{color:#8ab4f8;text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* Filter bar */
+  .filter-bar{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(10,10,15,0.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,0.06);padding:10px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .filter-bar select,.filter-bar input{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#ccc;padding:6px 12px;border-radius:6px;font-size:13px;outline:none}
+  .filter-bar select:focus,.filter-bar input:focus{border-color:rgba(138,180,248,0.4)}
+  .filter-bar select option{background:#1a1a2e}
+  .filter-count{font-size:11px;color:#888;background:rgba(138,180,248,0.15);padding:3px 8px;border-radius:10px;display:none}
+  .filter-count.active{display:inline}
+
+  /* Header */
+  .header{text-align:center;padding:80px 20px 30px}
+  .header h1{font-size:2.4rem;font-weight:300;letter-spacing:0.3em;color:rgba(255,255,255,0.7);text-transform:uppercase;margin-bottom:8px}
+  .header .tagline{color:rgba(255,255,255,0.35);font-size:1rem;margin-bottom:6px}
+  .header .stats{color:rgba(255,255,255,0.25);font-size:0.85rem}
+
+  /* Timeline container */
+  .timeline{position:relative;max-width:1000px;margin:0 auto;padding:20px 20px 80px}
+  .timeline::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;background:linear-gradient(to bottom,transparent,rgba(255,255,255,0.08) 3%,rgba(255,255,255,0.08) 97%,transparent);transform:translateX(-50%)}
+
+  /* Month header */
+  .month-header{text-align:center;position:relative;z-index:2;margin:28px 0 12px;clear:both}
+  .month-header span{background:#0a0a0f;color:rgba(255,255,255,0.2);font-size:0.75rem;letter-spacing:0.15em;text-transform:uppercase;padding:4px 16px;border:1px solid rgba(255,255,255,0.06);border-radius:20px}
+
+  /* Timeline row — holds a pair of entries */
+  .tl-row{display:flex;align-items:flex-start;position:relative;margin-bottom:8px}
+  .tl-row::before{content:'';position:absolute;left:50%;top:18px;width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.15);transform:translateX(-50%);z-index:3}
+
+  /* Left and right slots */
+  .tl-left,.tl-right{width:50%;min-height:1px}
+  .tl-left{padding-right:30px;display:flex;justify-content:flex-end}
+  .tl-right{padding-left:30px;display:flex;justify-content:flex-start}
+
+  /* Card */
+  .card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px 18px;max-width:420px;width:100%;transition:border-color 0.3s,transform 0.2s}
+  .card:hover{border-color:rgba(255,255,255,0.12);transform:translateY(-1px)}
+  .card.gold{border-color:rgba(218,165,32,0.35)}
+  .card.gold:hover{border-color:rgba(218,165,32,0.55)}
+
+  .card-date{font-size:0.72rem;color:rgba(255,255,255,0.25);margin-bottom:3px}
+  .card-title{font-size:0.95rem;font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:5px}
+  .card-title .icon{font-size:0.8rem}
+  .card-desc{font-size:0.8rem;color:rgba(255,255,255,0.4);margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .card-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .lang-pill{font-size:0.68rem;padding:2px 8px;border-radius:10px;font-weight:500;display:inline-flex;align-items:center;gap:4px}
+  .lang-pill .dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+  .card-org{font-size:0.68rem;color:rgba(255,255,255,0.15)}
+
+  /* Footer */
+  .footer{text-align:center;padding:40px 20px 60px;color:rgba(255,255,255,0.3);font-size:0.85rem}
+
+  /* Responsive */
+  @media(max-width:768px){
+    .timeline::before{left:16px}
+    .tl-row{flex-direction:column}
+    .tl-row::before{left:16px;transform:translateX(-50%)}
+    .tl-left,.tl-right{width:100%;padding:0 0 0 36px}
+    .tl-left{justify-content:flex-start}
+    .tl-right{justify-content:flex-start}
+    .card{max-width:100%}
+    .filter-bar{gap:8px;padding:8px 12px}
+    .filter-bar select,.filter-bar input{font-size:12px;padding:5px 8px}
+    .header h1{font-size:1.6rem;letter-spacing:0.2em}
+    .header{padding-top:70px}
+    .month-header{margin:20px 0 8px}
+  }
+
+  html{scroll-behavior:smooth}
+</style>
+</head>
+<body>
+
+<div class="filter-bar" id="filterBar">
+  <select id="filterOrg"><option value="">All orgs</option></select>
+  <select id="filterType">
+    <option value="">All types</option>
+    <option value="release">Releases</option>
+    <option value="new_repo">New repos</option>
+  </select>
+  <select id="filterLang"><option value="">All languages</option></select>
+  <input type="text" id="filterSearch" placeholder="Search..." style="min-width:140px">
+  <span class="filter-count" id="filterCount"></span>
+</div>
+
+<div class="header">
+  <h1>ShipLog</h1>
+  <p class="tagline">Everything David Liedle has shipped.</p>
+  <p class="stats" id="stats"></p>
+</div>
+
+<div class="timeline" id="timeline"></div>
+<div class="footer" id="footer"></div>
+
+<script>
+const langColors = {
+  'Rust':'#f57542','Go':'#00add8','TypeScript':'#3178c6',
+  'Python':'#3fb950','Dart':'#00b4ab','Ruby':'#e03e3e',
+  'HTML':'#e8a838','JavaScript':'#f0db4f','Java':'#b07219',
+  'C++':'#6295cb','C':'#555555','C#':'#68217a',
+  'PHP':'#777bb4','Shell':'#89e051','Swift':'#fa7343',
+  'Kotlin':'#a97bff','Erlang':'#b83998','Clojure':'#63b132',
+  'Lua':'#000080','Crystal':'#776791','Common Lisp':'#3fb68b',
+  'Svelte':'#ff3e00','Emacs Lisp':'#c065db','Objective-C':'#438eff',
+  'Jinja':'#a52a22','Slim':'#2b2b2b','Twig':'#c1d026',
+  'Makefile':'#427819','CSS':'#563d7c','SCSS':'#c6538c',
+  'TeX':'#3d6117','Smalltalk':'#596706'
+};
+
+function getColor(lang) { return langColors[lang] || '#888888'; }
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function monthKey(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function makeCard(entry) {
+  const icon = entry.type === 'release' ? '\u{1F680}' : '\u2726';
+  const isGold = entry.stars >= 5;
+  const langPill = entry.language
+    ? `<span class="lang-pill" style="background:${getColor(entry.language)}22;color:${getColor(entry.language)}"><span class="dot" style="background:${getColor(entry.language)}"></span>${entry.language}</span>`
+    : '';
+  return `<div class="card${isGold ? ' gold' : ''}">
+    <div class="card-date">${formatDate(entry.date)}</div>
+    <div class="card-title">
+      <span class="icon">${icon}</span>
+      <a href="${entry.url}" target="_blank" rel="noopener">${escapeHtml(entry.title)}</a>
+    </div>
+    ${entry.description ? `<div class="card-desc">${escapeHtml(entry.description)}</div>` : ''}
+    <div class="card-meta">
+      ${langPill}
+      <span class="card-org">${escapeHtml(entry.org)}</span>
+    </div>
+  </div>`;
+}
+
+let allEntries = [];
+
+async function init() {
+  const resp = await fetch('data/shiplog.json');
+  const data = await resp.json();
+  allEntries = data.entries;
+
+  const releases = allEntries.filter(e => e.type === 'release').length;
+  const repos = allEntries.filter(e => e.type === 'new_repo').length;
+  const orgs = new Set(allEntries.map(e => e.org));
+  document.getElementById('stats').textContent =
+    `${releases} releases, ${repos} repos, across ${orgs.size} orgs.`;
+
+  const orgSelect = document.getElementById('filterOrg');
+  [...orgs].sort().forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o; opt.textContent = o;
+    orgSelect.appendChild(opt);
+  });
+
+  const langs = new Set(allEntries.map(e => e.language).filter(Boolean));
+  const langSelect = document.getElementById('filterLang');
+  [...langs].sort().forEach(l => {
+    const opt = document.createElement('option');
+    opt.value = l; opt.textContent = l;
+    langSelect.appendChild(opt);
+  });
+
+  const oldest = allEntries[allEntries.length - 1];
+  document.getElementById('footer').textContent =
+    `First ship: ${formatDate(oldest.date)}. Still shipping.`;
+
+  render(allEntries);
+
+  document.getElementById('filterOrg').addEventListener('change', applyFilters);
+  document.getElementById('filterType').addEventListener('change', applyFilters);
+  document.getElementById('filterLang').addEventListener('change', applyFilters);
+  document.getElementById('filterSearch').addEventListener('input', applyFilters);
+}
+
+function applyFilters() {
+  const org = document.getElementById('filterOrg').value;
+  const type = document.getElementById('filterType').value;
+  const lang = document.getElementById('filterLang').value;
+  const search = document.getElementById('filterSearch').value.toLowerCase();
+
+  let count = 0;
+  if (org) count++;
+  if (type) count++;
+  if (lang) count++;
+  if (search) count++;
+
+  const fc = document.getElementById('filterCount');
+  if (count > 0) {
+    fc.textContent = `${count} filter${count > 1 ? 's' : ''} active`;
+    fc.classList.add('active');
+  } else {
+    fc.classList.remove('active');
+  }
+
+  const filtered = allEntries.filter(e => {
+    if (org && e.org !== org) return false;
+    if (type && e.type !== type) return false;
+    if (lang && e.language !== lang) return false;
+    if (search && !(e.title || '').toLowerCase().includes(search) && !(e.description || '').toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  render(filtered);
+}
+
+function render(entries) {
+  const timeline = document.getElementById('timeline');
+  timeline.innerHTML = '';
+
+  let currentMonth = '';
+  let idx = 0;
+
+  for (let i = 0; i < entries.length; i += 2) {
+    const left = entries[i];
+    const right = entries[i + 1];
+
+    // Check if we need month headers
+    const leftMonth = monthKey(left.date);
+    const rightMonth = right ? monthKey(right.date) : null;
+
+    // If left entry starts a new month, add header
+    if (leftMonth !== currentMonth) {
+      currentMonth = leftMonth;
+      const mh = document.createElement('div');
+      mh.className = 'month-header';
+      mh.innerHTML = `<span>${leftMonth}</span>`;
+      timeline.appendChild(mh);
+    }
+
+    // If right entry is in a different month, we need to break the pair
+    if (right && rightMonth !== leftMonth) {
+      // Render left alone
+      const row = document.createElement('div');
+      row.className = 'tl-row';
+      row.innerHTML = `<div class="tl-left">${makeCard(left)}</div><div class="tl-right"></div>`;
+      timeline.appendChild(row);
+
+      // Rewind by 1 so the right entry becomes the left of the next pair
+      i--;
+      continue;
+    }
+
+    const row = document.createElement('div');
+    row.className = 'tl-row';
+    row.innerHTML = `
+      <div class="tl-left">${makeCard(left)}</div>
+      <div class="tl-right">${right ? makeCard(right) : ''}</div>
+    `;
+    timeline.appendChild(row);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
